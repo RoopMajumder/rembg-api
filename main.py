@@ -2,7 +2,7 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.concurrency import run_in_threadpool
-from rembg import remove
+from rembg import remove, new_session
 from PIL import Image
 import io
 
@@ -20,6 +20,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+session = None
+
+
 @app.get("/")
 def root():
     return {
@@ -28,9 +31,25 @@ def root():
         "version": "1.0.0"
     }
 
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+def get_session():
+    global session
+
+    if session is None:
+        session = new_session("u2netp")
+
+    return session
+
+
+def process_image(image):
+    rembg_session = get_session()
+    return remove(image, session=rembg_session)
+
 
 @app.post("/remove-background")
 async def remove_background(file: UploadFile = File(...)):
@@ -46,8 +65,7 @@ async def remove_background(file: UploadFile = File(...)):
         image = Image.open(io.BytesIO(image_data))
         image.load()
 
-        
-        result = await run_in_threadpool(remove, image)
+        result = await run_in_threadpool(process_image, image)
 
         output = io.BytesIO()
         result.save(output, format="PNG")
