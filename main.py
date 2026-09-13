@@ -1,6 +1,7 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from fastapi.concurrency import run_in_threadpool
 from rembg import remove
 from PIL import Image
 import io
@@ -29,9 +30,7 @@ def root():
 
 @app.get("/health")
 def health():
-    return {
-        "status": "ok"
-    }
+    return {"status": "ok"}
 
 @app.post("/remove-background")
 async def remove_background(file: UploadFile = File(...)):
@@ -47,7 +46,8 @@ async def remove_background(file: UploadFile = File(...)):
         image = Image.open(io.BytesIO(image_data))
         image.load()
 
-        result = remove(image)
+        
+        result = await run_in_threadpool(remove, image)
 
         output = io.BytesIO()
         result.save(output, format="PNG")
