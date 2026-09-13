@@ -1,1 +1,67 @@
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
+from rembg import remove
+from PIL import Image
+import io
 
+app = FastAPI(
+    title="RemBG API",
+    description="Background removal API for RemBG",
+    version="1.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/")
+def root():
+    return {
+        "name": "RemBG API",
+        "status": "online",
+        "version": "1.0.0"
+    }
+
+@app.get("/health")
+def health():
+    return {
+        "status": "ok"
+    }
+
+@app.post("/remove-background")
+async def remove_background(file: UploadFile = File(...)):
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=400,
+            detail="Please upload a valid image."
+        )
+
+    try:
+        image_data = await file.read()
+
+        image = Image.open(io.BytesIO(image_data))
+        image.load()
+
+        result = remove(image)
+
+        output = io.BytesIO()
+        result.save(output, format="PNG")
+
+        return Response(
+            content=output.getvalue(),
+            media_type="image/png",
+            headers={
+                "Content-Disposition": 'inline; filename="rembg-result.png"'
+            }
+        )
+
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Background removal failed: {str(error)}"
+        )
